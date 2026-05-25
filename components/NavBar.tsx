@@ -152,7 +152,7 @@ export default function Navbar() {
                     <button
                       onClick={() => {
                         setMenuOpen(false);
-                        signOut({ callbackUrl: "/" });
+                        signOut({ callbackUrl: "/login" });
                       }}
                       className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                     >
