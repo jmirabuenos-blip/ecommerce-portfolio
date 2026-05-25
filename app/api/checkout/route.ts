@@ -35,13 +35,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { items, address, total } = body as {
+    const { items, address } = body as {
       items: CartItem[];
       address: AddressData;
       total: number;
     };
 
-    // ── Basic validation ─────────────────────────────────────────
     if (!items || items.length === 0) {
       return NextResponse.json(
         { error: "Your cart is empty." },
@@ -49,14 +48,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!address || !total) {
+    if (!address) {
       return NextResponse.json(
         { error: "Missing order details." },
         { status: 400 }
       );
     }
 
-    // ── Look up user ─────────────────────────────────────────────
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     });
@@ -68,12 +66,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Verify all products exist in DB ──────────────────────────
     const productIds = items.map((i) => i.id);
 
     const products = await prisma.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, name: true, stock: true },
+      select: { id: true, name: true, stock: true, price: true },
     });
 
     if (products.length !== productIds.length) {
@@ -83,9 +80,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Check stock ──────────────────────────────────────────────
     for (const item of items) {
-      const product = products.find((p) => p.id === item.id);
+      const product = products.find((p: any) => p.id === item.id);
       if (product && product.stock < item.quantity) {
         return NextResponse.json(
           { error: `Not enough stock for "${product.name}".` },
@@ -94,7 +90,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Create order + decrement stock in one transaction ────────
+    const serverTotal = items.reduce((sum: number, item: any) => {
+      const product = products.find((p: any) => p.id === item.id);
+      return sum + (product?.price ?? 0) * item.quantity;
+    }, 0);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const order = await prisma.$transaction(async (tx: any) => {
       for (const item of items) {
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
       const newOrder = await tx.order.create({
         data: {
           userId: user.id,
-          totalAmount: total,
+          totalAmount: serverTotal,
           status: "PENDING",
           paymentStatus: "UNPAID",
           shippingName: address.fullName,
@@ -118,10 +118,10 @@ export async function POST(req: NextRequest) {
           shippingZip: address.zip,
           shippingCountry: address.country,
           items: {
-            create: items.map((item) => ({
+            create: items.map((item: any) => ({
               productId: item.id,
               quantity: item.quantity,
-              price: item.price,
+              price: products.find((p: any) => p.id === item.id)?.price ?? 0,
             })),
           },
         },
