@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 export async function GET() {
   const session = await getServerSession(authOptions);
 
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session || session.user?.role !== "ADMIN") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -23,8 +23,8 @@ export async function GET() {
   ]);
 
   const totalRevenue = orders
-    .filter((o) => o.paymentStatus === "PAID")
-    .reduce((sum, o) => sum + o.totalAmount, 0);
+    .filter((o: any) => o.paymentStatus === "PAID")
+    .reduce((sum: number, o: any) => sum + o.totalAmount, 0);
 
   const ordersByStatus = {
     PENDING: 0,
